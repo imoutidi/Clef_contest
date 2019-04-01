@@ -16,6 +16,8 @@ from keras import layers, models, optimizers
 import warnings
 warnings.filterwarnings(action="ignore", category=DeprecationWarning)
 
+from neural_network import NeuralCreator
+
 
 def json_parsing():
     with open("/home/iraklis/PycharmProjects/Clef_contest/I_O/output/Document/"
@@ -44,6 +46,11 @@ class ClassificationTask:
         self.xtest_tfidf_ngram = 0
         self.xtrain_tfidf_ngram_chars = 0
         self.xtest_tfidf_ngram_chars = 0
+        self.embedding_matrix = numpy.zeros(0)
+        self.word_index = {}
+        self.train_seq_x = 0
+        self.test_seq_x = 0
+
 
     def pre_process(self, data_path):
         data = open(data_path).read()
@@ -103,18 +110,18 @@ class ClassificationTask:
         # create a tokenizer
         token = text.Tokenizer()
         token.fit_on_texts(self.train_df['text'])
-        word_index = token.word_index
+        self.word_index = token.word_index
 
         # convert text to sequence of tokens and pad them to ensure equal length vectors
-        train_seq_x = sequence.pad_sequences(token.texts_to_sequences(self.train_x), maxlen=70)
-        test_seq_x = sequence.pad_sequences(token.texts_to_sequences(self.test_x), maxlen=70)
+        self.train_seq_x = sequence.pad_sequences(token.texts_to_sequences(self.train_x), maxlen=70)
+        self.test_seq_x = sequence.pad_sequences(token.texts_to_sequences(self.test_x), maxlen=70)
 
         # create token-embedding mapping
-        embedding_matrix = numpy.zeros((len(word_index) + 1, 300))
-        for word, i in word_index.items():
+        self.embedding_matrix = numpy.zeros((len(self.word_index) + 1, 300))
+        for word, i in self.word_index.items():
             embedding_vector = embeddings_index.get(word)
             if embedding_vector is not None:
-                embedding_matrix[i] = embedding_vector
+                self.embedding_matrix[i] = embedding_vector
 
     def train_model(self, classifier, feature_vector_train, label, feature_vector_valid, is_neural_net=False):
         # fit the training dataset on the classifier
@@ -209,15 +216,43 @@ class ClassificationTask:
                                self.xtest_tfidf_ngram_chars.tocsc())
         print("Xgb, CharLevel Vectors: " + str(accuracy) + "\n")
 
+    def run_neural(self):
+        neural_net = NeuralCreator(self.xtrain_tfidf_ngram.shape[1])
+        shallow_classifier = neural_net.create_shallow_model()
+        accuracy = self.train_model(shallow_classifier, self.xtrain_tfidf_ngram, self.train_y,
+                                    self.xtest_tfidf_ngram, is_neural_net=True)
+        print("NN, Ngram Level TF IDF Vectors" + str(accuracy))
+
+        cnn_classifier = neural_net.create_cnn(self.word_index, self.embedding_matrix)
+        accuracy = self.train_model(cnn_classifier, self.train_seq_x, self.train_y,
+                                    self.test_seq_x, is_neural_net=True)
+        print("CNN, Word Embeddings" + str(accuracy))
+
+        rnn_gru_classifier = neural_net.create_rnn_gru(self.word_index, self.embedding_matrix)
+        accuracy = self.train_model(rnn_gru_classifier, self.train_seq_x, self.train_y,
+                                    self.test_seq_x, is_neural_net=True)
+        print("RNN-GRU, Word Embeddings" + str(accuracy))
+
+        bi_rnn_classifier = neural_net.create_bidirectional_rnn(self.word_index, self.embedding_matrix)
+        accuracy = self.train_model(bi_rnn_classifier, self.train_seq_x, self.train_y,
+                                    self.test_seq_x, is_neural_net=True)
+        print("RNN-Bidirectional, Word Embeddings" + str(accuracy))
+
+        rcnn_classifier = neural_net.create_rcnn(self.word_index, self.embedding_matrix)
+        accuracy = self.train_model(rcnn_classifier, self.train_seq_x, self.train_y,
+                                    self.test_seq_x, is_neural_net=True)
+        print("CNN, Word Embeddings", str(accuracy))
+
 
 if __name__ == "__main__":
     c_task = ClassificationTask()
     c_task.pre_process('I_O/data/corpus')
     c_task.vectorize()
-    # c_task.embeding('I_O/data/wiki-news-300d-1M.vec')
+    c_task.embeding('I_O/data/wiki-news-300d-1M.vec')
     c_task.run_naive_bayes()
     c_task.run_logistic_regression()
     # c_task.run_svm()
     c_task.run_random_forest()
     c_task.run_xgb()
+    c_task.run_neural()
     print("a")
