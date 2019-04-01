@@ -40,6 +40,7 @@ class ClassificationTask:
         self.train_seq_x = 0
         self.test_seq_x = 0
 
+    # preprocessing the CLEF dataset
     def json_parsing(self):
         encoder = preprocessing.LabelEncoder()
         train_text = list()
@@ -69,6 +70,7 @@ class ClassificationTask:
         self.data_df['text'] = all_text
         self.data_df['label'] = all_labels
 
+    # preprocessing some example datasets
     def pre_process(self, data_path):
         data = open(data_path).read()
         labels, texts = [], []
